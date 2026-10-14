@@ -27,6 +27,10 @@ This repository uses the latest Readmanna snapshot found locally:
 
 ## Screenshots
 
+![Selecting books](docs/screenshots/select.png)
+![Reading book](docs/screenshots/read.png)
+![Going to page](docs/screenshots/go.png)
+
 The current desktop exporter, with two sample chapters ready to export:
 
 ![Readmanna desktop exporter with preprocessing settings and sample chapters](docs/screenshots/exporter.png)
