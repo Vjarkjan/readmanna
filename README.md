@@ -1,5 +1,10 @@
 # Readmanna
 
+this is a fork of "https://github.com/hwfish/ds-mangaman" with more features
+and more flexibility for regular pdf visualization, turning your dsi into 
+a "kindle", there are features to be implemented such as:
+goto's for links on pages, better gui, but is fully functional
+
 Readmanna lets you read comics, manga, and documents on a **Nintendo DSi**.
 It spreads one page across both screens, so you can hold the console upright
 or turn the page sideways and read with the console like a book.
@@ -14,16 +19,11 @@ You keep one small reader app on the card and add books whenever you like.
 - Rotate the view in either direction without converting the book again.
 - Switch between books, move across chapters, or jump to a page number.
 - Each book remembers your page, rotation, and zoom.
-- Convert a whole PDF in one step, or organize images into your own chapters.
 - Choose a compact 256-color format or full-color RGB555, with lossless LZ10
   compression after the page images are prepared.
 - Use bicubic preprocessing on the computer, with cached lightweight resizing
   on the DSi, keeping all seven zoom levels and four image files per page.
 - Replace an exported book while preserving its saved reading position.
-
-This repository uses the latest Readmanna snapshot found locally:
-`readmanna-preprocessed-480x720-512x768`. The source and checks are recorded in
-[docs/origin.md](docs/origin.md).
 
 ## Screenshots
 
