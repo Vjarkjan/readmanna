@@ -1,5 +1,10 @@
 # Readmanna
 
+this is a fork of "https://github.com/hwfish/ds-mangaman" with more features
+and more flexibility for regular pdf visualization, turning your dsi into 
+a "kindle", there are features to be implemented such as:
+goto's for links on pages, better gui, but is fully functional
+
 Readmanna lets you read comics, manga, and documents on a **Nintendo DSi**.
 It spreads one page across both screens, so you can hold the console upright
 or turn the page sideways and read with the console like a book.
