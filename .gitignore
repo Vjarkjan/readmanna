@@ -1,0 +1,18 @@
+# Compiled reader, exported books, and temporary work
+/build/
+*.elf
+*.map
+*.nds
+*.lst
+*.o
+*.d
+
+# Desktop packaging and Python environments
+/dist/
+__pycache__/
+*.py[cod]
+/.venv/
+
+# Personal reading material
+/assets/jpg_comic/
+/assets/nitrofiles/

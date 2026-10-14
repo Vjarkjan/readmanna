@@ -1,0 +1,60 @@
+{
+  "snapshot": "readmanna-preprocessed-480x720-512x768",
+  "archive_sha256": "ab3475db8acbfb6b3e496889e2d8ecdff3402855f50a3898fe0b5aef8391dd52",
+  "files": [
+    {
+      "path": "Makefile",
+      "sha256": "fe5904e98aa675d8b322ce5ca7b5a88eef0cfc0fc80d4ef879ce54bc20e0d527",
+      "repository_sha256": "5655faf0c54ecb0f67306169b0804bfd590220a6758ae2c157e38f2a544ddf3f",
+      "adaptation": "Normalize line endings or final blank line; no logic changes."
+    },
+    {
+      "path": "build.bat",
+      "sha256": "11c9568ae52b57433b03e7deb943fc2f3cbb7f2a989fef1eb469345740c0ce64"
+    },
+    {
+      "path": "build_nds.sh",
+      "sha256": "0d07af313e9f96912a36196dd7823d50fe69edaa1785725f605f77d414cdd5f7"
+    },
+    {
+      "path": "icon.bmp",
+      "sha256": "47c29f324596390953a67f17a84331d42a05f7226a250a2491e7b2aa40b3a2c0"
+    },
+    {
+      "path": "main_gui.py",
+      "sha256": "a624c2d27644bdbaa38bfd928886b453b7b72c1033c0cbba5f036c15f2a19391",
+      "repository_sha256": "4cc46b797f6a46bfa8513c575fb943f4f685633983f10447b63d705aa3f05770",
+      "adaptation": "Accept DSi-exclusive ROM headers and list both preprocessed reading sizes."
+    },
+    {
+      "path": "main_gui.spec",
+      "sha256": "ae800d546a4484fa41879a8636b7840d51cce59a60d257a27cb3941afe638fc5"
+    },
+    {
+      "path": "pdf_importer.py",
+      "sha256": "baba8eac1fb6aaa6490bcbb2b3bdb4a3cc4e91236d0bd77ee365eec5cb354fdc",
+      "repository_sha256": "0f63cebd5be978466936bb2f3d988a31f38411ee06b0e8b066ac32121fe40540",
+      "adaptation": "Normalize line endings or final blank line; no logic changes."
+    },
+    {
+      "path": "pdf_to_book.py",
+      "sha256": "547024ffab1a978b3adb40bf86874ac81091c93954971ee65c32130d216b8029"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "42a09c63011ad69a1c2e2a9c9ea02f047ae936c7e1ff0daae672a1a3fd1ae65e"
+    },
+    {
+      "path": "update_book_cfg.py",
+      "sha256": "8378bc2b67825bffc10d9358e7409323a2e8e89f58e44c0b482e46b37590e424"
+    },
+    {
+      "path": "source/main.cpp",
+      "sha256": "63d8e667cb456da7192d471aaa88441beb5807a45412e2b9b7b2df1f09c71e78"
+    },
+    {
+      "path": "assets/devkitProUpdater-3.0.3.exe",
+      "sha256": "038a99dc84f1ca0b52e9e0e074a94a3b0672e6d7bf0988563f0ab0812dcbb38d"
+    }
+  ]
+}
