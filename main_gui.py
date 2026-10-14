@@ -100,7 +100,7 @@ class PreprocessSettings:
     rotation: str = "No rotation"
     fit_mode: str = "Fit entire page"
     background: str = "White"
-    resampling: str = "Lanczos"
+    resampling: str = "Bicubic"
     enhancement: str = "Crisp text / manga"
     storage: str = "Compact 256 colors"
 
@@ -958,7 +958,7 @@ class DSComicViewerGUI:
         self.rotation_var = tk.StringVar(value="No rotation")
         self.fit_mode_var = tk.StringVar(value="Fit entire page")
         self.background_var = tk.StringVar(value="White")
-        self.resampling_var = tk.StringVar(value="Lanczos")
+        self.resampling_var = tk.StringVar(value=PreprocessSettings().resampling)
         self.enhancement_var = tk.StringVar(value="Crisp text / manga")
         self.storage_var = tk.StringVar(value=STORAGE_MODES[0])
 

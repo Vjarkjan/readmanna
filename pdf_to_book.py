@@ -4,7 +4,7 @@
 The complete PDF is always stored as one internal chapter (0001). Pages are
 rasterized to a temporary JPEG one at a time, then passed through the same V3
 asset pipeline used by main_gui.py. The temporary JPEG is removed immediately
-after its detail, prefiltered 512x768, and preview assets have been created.
+after its detail, prefiltered 480x720/512x768, and preview assets have been created.
 """
 
 from __future__ import annotations

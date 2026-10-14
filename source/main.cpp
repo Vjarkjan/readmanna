@@ -9,8 +9,12 @@
 #include <string.h>
 
 #include <fat.h>
+#include "resize_rgb555.h"
 
 namespace {
+
+using readmanna::rotated_row_layout;
+using readmanna::bilinear_rgb555_fast;
 
 constexpr int LOGICAL_HEIGHT = SCREEN_HEIGHT * 2;
 
@@ -142,16 +146,21 @@ static u16 preview_buffers[2][PREVIEW_PIXELS] TWL_BSS __attribute__((aligned(32)
 // then reading it as contiguous rows just like the upright preview.
 static u16 rotated_preview_buffer[PREVIEW_PIXELS]
     TWL_BSS __attribute__((aligned(32)));
-// Detailed zooms use one page-specific area-filtered texture. It is built only
+// Detailed zooms use one page-specific resized texture. It is built only
 // after the candidate page assets have loaded successfully, so failed SD reads
 // leave the active page and its cache intact without reserving a second cache.
 static u16 zoom_texture_buffer[MAX_ZOOM_TEXTURE_PIXELS]
     TWL_BSS __attribute__((aligned(32)));
-// Scratch space is used only when a preprocessed middle-zoom texture must be
-// physically rotated.  The 512x768 asset is the larger of the two, so one
-// buffer serves both 480x720 and 512x768 without increasing DSi RAM usage.
+// Retain the upright host-filtered reading image across zoom/rotation changes.
+// The existing 512x768 scratch allocation also serves the 480x720 source.
 static u16 preprocessed_zoom_buffer[PREPROCESSED_ZOOM_SCRATCH_PIXELS]
     TWL_BSS __attribute__((aligned(32)));
+static readmanna::ResizeSample resize_x_samples[MAX_ZOOM_TEXTURE_WIDTH]
+    TWL_BSS __attribute__((aligned(32)));
+static readmanna::ResizeSample resize_y_samples[MAX_ZOOM_TEXTURE_HEIGHT]
+    TWL_BSS __attribute__((aligned(32)));
+static int preprocessed_source_page_buffer = -1;
+static int preprocessed_source_width = 0;
 static AreaFilterSpan horizontal_filter_spans[MAX_ZOOM_TEXTURE_WIDTH]
     TWL_BSS __attribute__((aligned(32)));
 static AreaFilterSpan vertical_filter_spans[MAX_ZOOM_TEXTURE_HEIGHT]
@@ -1108,8 +1117,7 @@ bool load_preprocessed_zoom_asset(
 }
 
 bool uses_preprocessed_zoom_asset(int level) {
-    return level == PREPROCESSED_ZOOM480_LEVEL ||
-        level == PREPROCESSED_ZOOM512_LEVEL;
+    return level >= FIRST_FILTERED_ZOOM && level <= PREPROCESSED_ZOOM512_LEVEL;
 }
 
 bool preprocessed_zoom_asset_info(
@@ -1123,7 +1131,7 @@ bool preprocessed_zoom_asset_info(
         expected_bytes == nullptr) {
         return false;
     }
-    if (level == PREPROCESSED_ZOOM480_LEVEL) {
+    if (level >= FIRST_FILTERED_ZOOM && level <= PREPROCESSED_ZOOM480_LEVEL) {
         *asset_name = "zoom480";
         *width = PREPROCESSED_ZOOM480_WIDTH;
         *height = PREPROCESSED_ZOOM480_HEIGHT;
@@ -1150,37 +1158,6 @@ ImageSize filtered_zoom_texture_size(int level) {
         PAGE_WIDTH * SCREEN_WIDTH / crop.width,
         PAGE_HEIGHT * LOGICAL_HEIGHT / crop.height,
     };
-}
-
-inline void rotated_row_layout(
-    int source_width,
-    int source_height,
-    int source_y,
-    int rotation,
-    int* destination_index,
-    int* destination_step
-) {
-    switch (rotation & 3) {
-        case 1: // 90 degrees clockwise: rotated size is height x width.
-            *destination_index = source_height - 1 - source_y;
-            *destination_step = source_height;
-            break;
-        case 2:
-            *destination_index =
-                (source_height - 1 - source_y) * source_width +
-                source_width - 1;
-            *destination_step = -1;
-            break;
-        case 3: // 90 degrees counterclockwise: rotated size is height x width.
-            *destination_index =
-                (source_width - 1) * source_height + source_y;
-            *destination_step = -source_height;
-            break;
-        default:
-            *destination_index = source_y * source_width;
-            *destination_step = 1;
-            break;
-    }
 }
 
 bool prepare_rotated_preview_texture(int buffer_index, int rotation) {
@@ -1476,83 +1453,61 @@ bool prepare_filtered_zoom_texture(
         return false;
     }
 
-    // Levels 3 and 4 map to exact 480x720 and 512x768 caches. Prefer the
-    // PC-generated asset so the ARM9 only reads and BIOS-decompresses it.
-    // Missing assets from older books transparently fall back to the original
-    // full-page filter below.
-    const char* preprocessed_asset_name = nullptr;
-    int preprocessed_width = 0;
-    int preprocessed_height = 0;
-    size_t preprocessed_bytes = 0;
+    // Reuse the smallest available host-filtered source. Levels 1/2 reduce
+    // zoom480 with four-tap bilinear sampling; levels 3/4 copy exact pixels.
+    // Keep the upright source in RAM so rotations and nearby zooms need no SD
+    // read or decompression. The existing scratch allocation is sufficient.
+    const char* asset_name = nullptr;
+    int source_width = 0;
+    int source_height = 0;
+    size_t source_bytes = 0;
     const bool has_preprocessed_asset = preprocessed_zoom_asset_info(
-        level,
-        &preprocessed_asset_name,
-        &preprocessed_width,
-        &preprocessed_height,
-        &preprocessed_bytes
-    ) && texture_size.width == preprocessed_width &&
-        texture_size.height == preprocessed_height;
-
+        level, &asset_name, &source_width, &source_height, &source_bytes);
+    bool loaded = false;
     if (has_preprocessed_asset) {
-        bool loaded = false;
-        if (rotation == 0) {
+        loaded = preprocessed_source_page_buffer == buffer_index &&
+            preprocessed_source_width == source_width;
+        if (!loaded) {
+            preprocessed_source_page_buffer = -1;
             loaded = load_preprocessed_zoom_asset(
-                chapter_index,
-                page_number,
-                preprocessed_asset_name,
-                zoom_texture_buffer,
-                preprocessed_bytes
-            );
-        } else {
-            loaded = load_preprocessed_zoom_asset(
-                chapter_index,
-                page_number,
-                preprocessed_asset_name,
-                preprocessed_zoom_buffer,
-                preprocessed_bytes
-            );
+                chapter_index, page_number, asset_name,
+                preprocessed_zoom_buffer, source_bytes);
             if (loaded) {
-                for (int y = 0; y < preprocessed_height; ++y) {
-                    int destination_index = 0;
-                    int destination_step = 0;
-                    rotated_row_layout(
-                        preprocessed_width,
-                        preprocessed_height,
-                        y,
-                        rotation,
-                        &destination_index,
-                        &destination_step
-                    );
-                    const u16* source_row = preprocessed_zoom_buffer +
-                        y * preprocessed_width;
-                    for (int x = 0; x < preprocessed_width; ++x) {
-                        zoom_texture_buffer[destination_index] = source_row[x];
-                        destination_index += destination_step;
-                    }
+                preprocessed_source_page_buffer = buffer_index;
+                preprocessed_source_width = source_width;
+            }
+        }
+    }
+    if (loaded || !has_preprocessed_asset) {
+        const u16* source = preprocessed_zoom_buffer;
+        if (!loaded) {
+            if (!full_page_loaded[buffer_index]) {
+                if (!load_full_page_asset(buffer_index, chapter_index, page_number)) {
+                    return false;
                 }
+                full_page_loaded[buffer_index] = true;
             }
+            source = page_buffers[buffer_index];
+            source_width = PAGE_WIDTH;
+            source_height = PAGE_HEIGHT;
         }
+        readmanna::resize_rgb555(
+            source, source_width, source_height, zoom_texture_buffer,
+            texture_size.width, texture_size.height, rotation,
+            resize_x_samples, resize_y_samples);
+        zoom_texture_page_buffer = buffer_index;
+        zoom_texture_level = level;
+        zoom_texture_rotation = rotation;
+        return true;
+    }
 
-        if (loaded) {
-            zoom_texture_page_buffer = buffer_index;
-            zoom_texture_level = level;
-            zoom_texture_rotation = rotation;
-            return true;
+    // Older books can lack zoom480/zoom512. Preserve their antialiased area
+    // reduction from detail instead of bilinearly undersampling by up to 3x.
+    if (!full_page_loaded[buffer_index]) {
+        if (!load_full_page_asset(buffer_index, chapter_index, page_number)) {
+            return false;
         }
-
-        // Compatibility path for books exported before this zoom asset existed.
-        if (!full_page_loaded[buffer_index]) {
-            if (!load_full_page_asset(
-                    buffer_index,
-                    chapter_index,
-                    page_number
-                )) {
-                return false;
-            }
-            full_page_loaded[buffer_index] = true;
-        }
-    } else if (!full_page_loaded[buffer_index]) {
-        return false;
+        full_page_loaded[buffer_index] = true;
     }
 
     // Exact 2x and 3x reductions use compact dedicated kernels. Fractional
@@ -1613,6 +1568,9 @@ bool load_page_asset(int chapter_index, int page_number) {
 
     const int candidate_buffer = active_page_buffer ^ 1;
     full_page_loaded[candidate_buffer] = false;
+    if (preprocessed_source_page_buffer == candidate_buffer) {
+        preprocessed_source_page_buffer = -1;
+    }
     if (rotated_preview_page_buffer == candidate_buffer) {
         rotated_preview_page_buffer = -1;
         rotated_preview_rotation = -1;
@@ -1639,8 +1597,8 @@ bool load_page_asset(int chapter_index, int page_number) {
     }
 
     if (zoom_index > 0) {
-        // At either preprocessed middle zoom, defer loading the much larger
-        // 960x1440 page unless that page's host-generated asset is absent.
+        // The first four zooms reuse host-filtered assets and defer detail
+        // loading unless the smaller asset is absent in an older book.
         if (!uses_preprocessed_zoom_asset(zoom_index)) {
             if (!load_full_page_asset(candidate_buffer, chapter_index, page_number)) {
                 return false;
@@ -1948,8 +1906,8 @@ void change_zoom(int direction) {
     const int center_y_twice = view_y * 2 + old_crop.height;
 
     if (uses_filtered_zoom_texture(next_zoom)) {
-        // Books exported by the new pipeline can enter levels 3 and 4 without
-        // loading the 960x1440 detail page. Other levels still require it.
+        // Levels 1 through 4 can reuse host-filtered reading images without
+        // loading the 960x1440 detail page.
         if (!uses_preprocessed_zoom_asset(next_zoom) &&
             !full_page_loaded[active_page_buffer] &&
             !ensure_full_page_loaded()) {
@@ -2234,56 +2192,6 @@ RotatedTextureLayout make_rotated_texture_layout(
                 source_width,
             };
     }
-}
-
-inline u16 bilinear_rgb555_fast(
-    u16 top_left,
-    u16 top_right,
-    u16 bottom_left,
-    u16 bottom_right,
-    u32 fraction_x,
-    u32 fraction_y
-) {
-    // Do the interpolation as two exact 1-D lerps without rounding the
-    // horizontal intermediate.  This is algebraically identical to the old
-    // four 2-D weights but needs only three multiplies per color channel.
-    const int r00 = top_left & 31;
-    const int r10 = top_right & 31;
-    const int r01 = bottom_left & 31;
-    const int r11 = bottom_right & 31;
-    const int g00 = (top_left >> 5) & 31;
-    const int g10 = (top_right >> 5) & 31;
-    const int g01 = (bottom_left >> 5) & 31;
-    const int g11 = (bottom_right >> 5) & 31;
-    const int b00 = (top_left >> 10) & 31;
-    const int b10 = (top_right >> 10) & 31;
-    const int b01 = (bottom_left >> 10) & 31;
-    const int b11 = (bottom_right >> 10) & 31;
-
-    const int red_top = (r00 << 8) + (r10 - r00) * static_cast<int>(fraction_x);
-    const int red_bottom = (r01 << 8) + (r11 - r01) * static_cast<int>(fraction_x);
-    const int green_top = (g00 << 8) + (g10 - g00) * static_cast<int>(fraction_x);
-    const int green_bottom = (g01 << 8) + (g11 - g01) * static_cast<int>(fraction_x);
-    const int blue_top = (b00 << 8) + (b10 - b00) * static_cast<int>(fraction_x);
-    const int blue_bottom = (b01 << 8) + (b11 - b01) * static_cast<int>(fraction_x);
-
-    const int red = (
-        (red_top << 8) +
-        (red_bottom - red_top) * static_cast<int>(fraction_y) +
-        32768
-    ) >> 16;
-    const int green = (
-        (green_top << 8) +
-        (green_bottom - green_top) * static_cast<int>(fraction_y) +
-        32768
-    ) >> 16;
-    const int blue = (
-        (blue_top << 8) +
-        (blue_bottom - blue_top) * static_cast<int>(fraction_y) +
-        32768
-    ) >> 16;
-
-    return static_cast<u16>(BIT(15) | red | (green << 5) | (blue << 10));
 }
 
 // Scale a page-space coordinate into 16.16 texture space with floor semantics.
@@ -3060,7 +2968,9 @@ int main() {
 
         if (pending_zoom_direction > 0 && pending_zoom_frames <= 0) {
             const int previous_zoom = zoom_index;
-            if (zoom_index + 1 < ZOOM_LEVEL_COUNT && ensure_full_page_loaded()) {
+            // change_zoom loads only the asset needed by the destination level.
+            // Preloading detail here defeats the host-preprocessed zoom path.
+            if (zoom_index + 1 < ZOOM_LEVEL_COUNT) {
                 change_zoom(1);
             }
             if (zoom_index != previous_zoom) {

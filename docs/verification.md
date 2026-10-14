@@ -2,6 +2,43 @@
 
 Checked on Linux on 14 October 2026.
 
+## Bicubic preprocessing and cached resizing
+
+The current reader builds to `build/Readmanna.nds` (305,152 bytes). The build
+still emits only the two installed-libnds qualifier warnings described below.
+
+`python3 -m unittest discover -s tests -v` passes five tests, covering:
+
+- Default bicubic pixels against Pillow's bicubic reference.
+- Actual grit exports in both palette and RGB555 modes, retaining exactly four
+  assets per page and the same 4,439,040-byte uncompressed RGB555 pixel budget.
+  Every exported LZ10 stream is decoded and its dimensions checked.
+- The reader's C++ resize kernel at all seven view sizes and four rotations,
+  compared with an independent floating-point reference, with bounds sentinels
+  and undefined-behavior sanitization. Exact-size paths preserve every pixel;
+  bilinear results differ by at most one RGB555 channel step from the reference.
+- Enhanced/exclusive DSi ROM header validation and rejection of invalid headers.
+
+Python compilation and `git diff --check` pass. Both existing sample books
+also pass `update_book_cfg.py build/sd_card --dry-run` without changes.
+
+For a storage comparison, the original two-page `build/reading-demo.pdf` was
+rasterized at 200 DPI to temporary PNGs, then exported with GUI defaults in
+compact mode, changing only the filter:
+
+| Filter | Page 1 | Page 2 | Total asset bytes |
+| --- | ---: | ---: | ---: |
+| Lanczos | 321,368 | 321,476 | 642,844 |
+| Bicubic | 320,180 | 320,260 | 640,440 |
+
+The bicubic sample is 0.37% smaller. Image count, dimensions, palettes and LZ10
+format are unchanged, but a different filter can increase or decrease compressed
+bytes on other images. No physical DSi timing or emulator rendering was measured;
+the reduction in resize work and SD reads is established from the code paths,
+not a claimed frame-rate benchmark.
+
+## Initial repository validation
+
 | Check | Result |
 | --- | --- |
 | `bash build_nds.sh` | Built `build/Readmanna.nds`, 303,104 bytes |

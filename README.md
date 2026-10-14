@@ -17,8 +17,8 @@ You keep one small reader app on the card and add books whenever you like.
 - Convert a whole PDF in one step, or organize images into your own chapters.
 - Choose a compact 256-color format or full-color RGB555, with lossless LZ10
   compression after the page images are prepared.
-- Prepare 480 × 720 and 512 × 768 reading images on the computer, alongside
-  the detailed page and small preview, to reduce resizing work on the DSi.
+- Use bicubic preprocessing on the computer, with cached lightweight resizing
+  on the DSi, keeping all seven zoom levels and four image files per page.
 - Replace an exported book while preserving its saved reading position.
 
 This repository uses the latest Readmanna snapshot found locally:
@@ -123,9 +123,37 @@ selection, the app asks whether to export all chapters. This workflow also
 builds and places `Readmanna.nds` in `build/sd_card`, so you can copy that
 folder's contents to the card.
 
-The default settings are **Fit entire page**, **White**, **Lanczos**,
+The default settings are **Fit entire page**, **White**, **Bicubic**,
 **Crisp text / manga**, and **Compact 256 colors**. Change them for the image
 book you are exporting. The one-step PDF button uses its own default settings.
+
+### Image preprocessing and zoom
+
+Both exporters default to bicubic resizing on the computer. Each page still
+contains the same four LZ10-compressed images, with unchanged dimensions and
+color formats. There are no additional zoom files or stored rotations.
+
+| Zoom | Prepared source | DSi work when the view changes |
+| --- | --- | --- |
+| 1× | 256 × 384 preview | Copy pixels |
+| 1.25× / 1.5× | 480 × 720 reading image | Bilinear resize to 320 × 480 / 384 × 576 |
+| 1.875× | 480 × 720 reading image | Copy pixels |
+| 2× | 512 × 768 reading image | Copy pixels |
+| 2.5× / 3× | 960 × 1440 detail image | Bilinear resize to 640 × 960 / 768 × 1152 |
+
+The reader prepares the displayed texture only when the page, zoom, or rotation
+changes. Panning copies rows from that texture. The upright reading image stays
+in the existing scratch buffer, avoiding repeated SD reads and decompression
+for nearby zooms and rotations. Detail is loaded only for the two largest zooms
+or when an older book lacks a reading image; older books retain an area-filtered
+fallback for the smaller zooms.
+
+Existing books work with the rebuilt reader immediately. Re-export to apply
+bicubic filtering to books previously prepared with Lanczos. The pixel budget
+is unchanged; exact compressed sizes depend on image content and filtering.
+The two-page sample measured 640,440 bytes with bicubic versus 642,844 with
+Lanczos using the GUI defaults (0.37% smaller); this is not a size guarantee
+for every book.
 
 ## Buttons and shortcuts
 
