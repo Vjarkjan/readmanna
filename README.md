@@ -14,16 +14,11 @@ You keep one small reader app on the card and add books whenever you like.
 - Rotate the view in either direction without converting the book again.
 - Switch between books, move across chapters, or jump to a page number.
 - Each book remembers your page, rotation, and zoom.
-- Convert a whole PDF in one step, or organize images into your own chapters.
 - Choose a compact 256-color format or full-color RGB555, with lossless LZ10
   compression after the page images are prepared.
 - Prepare 480 × 720 and 512 × 768 reading images on the computer, alongside
   the detailed page and small preview, to reduce resizing work on the DSi.
 - Replace an exported book while preserving its saved reading position.
-
-This repository uses the latest Readmanna snapshot found locally:
-`readmanna-preprocessed-480x720-512x768`. The source and checks are recorded in
-[docs/origin.md](docs/origin.md).
 
 ## Screenshots
 
